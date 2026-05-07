@@ -11,7 +11,9 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 
 def test_top_level_exports_include_client_surface() -> None:
     expected_exports = {
+        "AsyncConnectorAuthorizationClient",
         "AsyncConnectorClient",
+        "ConnectorAuthorizationClient",
         "ConnectorClient",
         "ConnectorExecutionContext",
         "ConnectorClientError",
@@ -19,6 +21,9 @@ def test_top_level_exports_include_client_surface() -> None:
         "ConnectorNotAvailableError",
         "InvalidRuntimeRequestError",
         "CredentialResolutionError",
+        "OAuthAuthorizationError",
+        "OAuthAuthorizationSession",
+        "OAuthAuthorizationSessionStatus",
         "ProviderUnavailableError",
         "ResultNormalizationError",
         "RecordsResult",

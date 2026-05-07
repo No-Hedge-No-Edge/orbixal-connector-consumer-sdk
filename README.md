@@ -9,7 +9,9 @@ This package is structured so it can be copied into a standalone repository root
 The primary public API includes:
 
 - `AsyncConnectorClient`
+- `AsyncConnectorAuthorizationClient`
 - `ConnectorClient`
+- `ConnectorAuthorizationClient`
 - `ConnectorExecutionContext`
 - typed runtime-mapped SDK exceptions
 - normalized `RecordsResult` and `TabularResult`
@@ -71,10 +73,38 @@ async with AsyncConnectorClient(
     )
 ```
 
+OAuth authorization is backend-owned. The consumer SDK can initiate the backend flow for an
+existing connector instance and return the provider redirect URL, but it does not hold OAuth app
+credentials, exchange authorization codes, or store tokens:
+
+```python
+from connector_consumer_sdk import ConnectorAuthorizationClient
+
+with ConnectorAuthorizationClient(
+    control_plane_url="http://control-plane:8000",
+    credential_service_url="http://credential-service:8001",
+) as client:
+    session = client.start_authorization(
+        connector_instance_id="conninst_123",
+        requested_scopes=["repo", "read:user"],
+        return_url="https://app.example.com/connectors/github",
+    )
+
+    redirect_user_to = session.authorization_url
+```
+
+After the provider redirects to the backend callback URL, callers can poll sanitized session
+status:
+
+```python
+status = client.get_authorization_session(session.oauth_session_id)
+```
+
 ## Supported Flows
 
 The current SDK supports:
 
+- backend-owned OAuth authorization initiation and session status lookup
 - async `describe_input`, `list_resources_from_input`, `read_from_input`, `query_from_input`
 - async direct `describe`, `list_resources`, `read`, and `query`
 - async `iter_query_from_input` and `iter_query`

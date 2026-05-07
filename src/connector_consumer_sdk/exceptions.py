@@ -77,3 +77,7 @@ class ResultNormalizationError(ConnectorClientError):
 
 class RuntimeExecutionError(ConnectorClientError):
     """Raised for runtime failures that do not map to a narrower SDK exception."""
+
+
+class OAuthAuthorizationError(ConnectorClientError):
+    """Raised when backend-owned OAuth authorization flow calls fail."""

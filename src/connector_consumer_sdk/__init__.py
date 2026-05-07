@@ -1,5 +1,11 @@
 """Public-facing connector consumer SDK package."""
 
+from connector_consumer_sdk.authorization import (
+    AsyncConnectorAuthorizationClient,
+    ConnectorAuthorizationClient,
+    OAuthAuthorizationSession,
+    OAuthAuthorizationSessionStatus,
+)
 from connector_consumer_sdk.client import AsyncConnectorClient, ConnectorClient
 from connector_consumer_sdk.context import ConnectorExecutionContext
 from connector_consumer_sdk.exceptions import (
@@ -10,6 +16,7 @@ from connector_consumer_sdk.exceptions import (
     ConnectorNotAvailableError,
     CredentialResolutionError,
     InvalidRuntimeRequestError,
+    OAuthAuthorizationError,
     OperationNotSupportedError,
     PayloadTooLargeError,
     ProviderRateLimitedError,
@@ -52,10 +59,12 @@ from connector_consumer_sdk.results import ConnectorResult, RecordsResult, Tabul
 __all__ = [
     "BOUND_EXECUTION_KEYS",
     "ColumnDef",
+    "AsyncConnectorAuthorizationClient",
     "AsyncConnectorClient",
     "AuthExpiredError",
     "AuthInvalidError",
     "BindingNotFoundError",
+    "ConnectorAuthorizationClient",
     "ConnectorClient",
     "ConnectorClientError",
     "ConnectorDescription",
@@ -71,6 +80,9 @@ __all__ = [
     "HealthStatus",
     "InstanceStatus",
     "InvalidRuntimeRequestError",
+    "OAuthAuthorizationError",
+    "OAuthAuthorizationSession",
+    "OAuthAuthorizationSessionStatus",
     "OperationNotSupportedError",
     "OperationDescriptor",
     "PayloadTooLargeError",
