@@ -22,7 +22,7 @@ The primary public API includes:
 Bound access is the default path for agents:
 
 ```python
-from connector_consumer_sdk import ConnectorClient, ConnectorExecutionContext
+from connector_consumer_sdk import ConnectorClient, ConnectorExecutionContext, GitHubSearchIssues
 
 client = ConnectorClient(
     runtime_url="http://runtime-service:8002",
@@ -34,11 +34,9 @@ client = ConnectorClient(
 )
 
 with client:
-    result = client.query_from_input(
-        input_name="issue_source",
-        action="search_issues",
-        params={"query": "label:bug"},
-    )
+    issues = client.input("issue_source")
+    result = issues.query_action(GitHubSearchIssues("label:bug"))
+    first_issue = result.first()
 ```
 
 Direct instance access remains available as a lower-level escape hatch:
@@ -122,10 +120,71 @@ The current SDK supports:
 - `RecordsResult`
 - `TabularResult`
 
+Convenience helpers expose stable metadata and common result accessors:
+
+```python
+if result.has_more:
+    next_cursor = result.cursor
+
+request_id = result.request_id
+connector_key = result.connector_key
+
+if isinstance(result, RecordsResult):
+    first_record = result.require_first()
+    text_blocks = result.content_texts()
+
+if isinstance(result, TabularResult):
+    columns = result.column_names
+    first_row_values = result.require_first_row()
+```
+
 The package also preserves schema-derived wire models under:
 
 - `connector_consumer_sdk.generated`
 - `connector_consumer_sdk.models`
+
+## Error Taxonomy
+
+All SDK exceptions expose stable fields for agent orchestration:
+
+- `code`: canonical runtime/provider code
+- `category`: one of the `ConnectorErrorCategory` values
+- `retryable`: runtime retryability flag
+- `retry_recommendation`: one of `RetryRecommendation`
+- `retry_after_seconds`: parsed backoff hint when present
+
+Examples:
+
+- `ExecutionQuotaExceededError` maps to category `quota` and recommendation `retry_with_backoff`.
+- `ProviderUnavailableError` maps to category `provider`.
+- `AuthExpiredError` maps to category `auth` and recommendation `refresh_auth`.
+
+## Safe Retries
+
+Retries are opt-in and limited to safe read-style operations by default:
+
+```python
+from connector_consumer_sdk import ConnectorClient, RetryPolicy
+
+client = ConnectorClient(
+    runtime_url="http://runtime-service:8002",
+    retry_policy=RetryPolicy(max_attempts=3, base_delay_seconds=0.2),
+)
+```
+
+The SDK does not retry `test_connection`, auth refresh cases, or non-retryable runtime errors.
+
+## Typed Actions
+
+The SDK includes typed wrappers for common first-party actions, including GitHub, SEC, market
+intelligence, and tabular reads:
+
+```python
+from connector_consumer_sdk import MarketIntelGetQuote, SECSearchCompanies
+
+company = client.input("sec").query_action(SECSearchCompanies("Apple")).require_first()
+quote = client.input("market_intel").read_action(MarketIntelGetQuote("AAPL")).require_first()
+```
 
 ## Testing
 
@@ -166,13 +225,16 @@ Common package-local commands:
 - `uv sync --group dev`
 - `uv run pytest`
 - `uv build`
+- `uv run python scripts/sync_contract_models.py --check`
+- `uv run python scripts/generate_action_wrappers.py --manifest-root /Users/tgall/orbixal-first-party-connectors/dist`
+
+Release/versioning policy lives in `docs/RELEASE_AND_COMPATIBILITY.md`.
 
 ## Remaining Work
 
 The SDK is still internal-first and scaffold-stage in a few areas:
 
 - no async transport other than HTTP/custom injected transport
-- no broader runtime error taxonomy beyond currently emitted runtime codes
 - no publishing/release workflow yet
 
 ## Contract Source Of Truth

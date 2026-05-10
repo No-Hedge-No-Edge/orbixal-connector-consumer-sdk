@@ -9,13 +9,20 @@ from connector_consumer_sdk import (
     AsyncConnectorClient,
     BindingNotFoundError,
     ConnectorClient,
+    ConnectorErrorCategory,
     ConnectorExecutionContext,
     ConnectorNotAvailableError,
     CredentialResolutionError,
+    ExecutionQuotaExceededError,
+    GitHubSearchIssues,
     InvalidRuntimeRequestError,
+    PayloadTooLargeError,
     ProviderUnavailableError,
     RecordsResult,
+    RetryRecommendation,
+    RetryPolicy,
     ResultNormalizationError,
+    RuntimeExecutionError,
     TabularResult,
 )
 from connector_consumer_sdk.transport import HTTPAsyncConnectorTransport, HTTPConnectorTransport
@@ -182,6 +189,14 @@ def test_query_from_input_returns_records_result() -> None:
     assert result.kind == "records"
     assert result.cursor == "cursor_1"
     assert result.records[0]["id"] == "issue_1"
+    assert result.has_more is True
+    assert result.connector_key == "github"
+    assert result.action == "search_issues"
+    assert result.request_id == "req_123"
+    assert result.first() == result.records[0]
+    assert result.require_first()["id"] == "issue_1"
+    assert result.to_list() == result.records
+    assert result.content_texts() == ["Details"]
     client.close()
 
 
@@ -223,7 +238,51 @@ def test_read_returns_tabular_result() -> None:
 
     assert isinstance(result, TabularResult)
     assert result.columns[0]["name"] == "symbol"
+    assert result.column_names == ["symbol"]
+    assert result.values() == [{"symbol": "AAPL"}]
+    assert result.first_row() == {"symbol": "AAPL"}
+    assert result.require_first_row() == {"symbol": "AAPL"}
     assert result.raw == {"sheet": "prices"}
+    client.close()
+
+
+def test_bound_alias_helper_queries_input() -> None:
+    requests: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content.decode("utf-8"))
+        requests.append(payload)
+        return httpx.Response(
+            200,
+            json={
+                "kind": "records",
+                "records": [{"id": "issue_1", "type": "issue"}],
+                "cursor": None,
+                "meta": {
+                    "connector_key": "github",
+                    "connector_version": "1.0.0",
+                    "action": "search_issues",
+                    "request_id": "req_alias",
+                },
+            },
+        )
+
+    client = build_client(
+        handler,
+        execution_context=ConnectorExecutionContext(
+            pipeline_id="pipe_1",
+            agent_node_id="node_1",
+            request_id="req_alias",
+        ),
+    )
+
+    issues = client.input("issue_source")
+    result = issues.query("search_issues", {"query": "label:bug"})
+
+    assert isinstance(result, RecordsResult)
+    assert result.require_first()["id"] == "issue_1"
+    assert requests[0]["input_name"] == "issue_source"
+    assert requests[0]["operation"] == "query"
     client.close()
 
 
@@ -282,6 +341,123 @@ def test_iter_query_from_input_follows_cursor() -> None:
 
     assert [page.records[0]["id"] for page in pages] == ["issue_1", "issue_2"]
     assert requests[1]["input"]["cursor"] == "cursor_1"
+    client.close()
+
+
+def test_bound_typed_action_helper_queries_input() -> None:
+    requests: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content.decode("utf-8"))
+        requests.append(payload)
+        return httpx.Response(
+            200,
+            json={
+                "kind": "records",
+                "records": [{"id": "issue_1", "type": "issue"}],
+                "cursor": None,
+                "meta": {
+                    "connector_key": "github",
+                    "connector_version": "1.0.0",
+                    "action": "search_issues",
+                    "request_id": "req_action",
+                },
+            },
+        )
+
+    client = build_client(
+        handler,
+        execution_context=ConnectorExecutionContext(
+            pipeline_id="pipe_1",
+            agent_node_id="node_1",
+            request_id="req_action",
+        ),
+    )
+
+    result = client.input("issue_source").query_action(
+        GitHubSearchIssues("repo:orbixal/platform label:bug")
+    )
+
+    assert isinstance(result, RecordsResult)
+    assert requests[0]["input"] == {
+        "action": "search_issues",
+        "params": {"query": "repo:orbixal/platform label:bug"},
+        "include_raw": False,
+    }
+    client.close()
+
+
+def test_retry_policy_retries_safe_retryable_runtime_errors() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(
+                503,
+                json={
+                    "error": {
+                        "code": "provider_unavailable",
+                        "message": "Provider unavailable.",
+                        "retryable": True,
+                        "request_id": "req_retry",
+                        "details": {},
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "connector_instance_id": "conninst_123",
+                "connector_key": "github",
+                "connector_version": "1.0.0",
+                "capabilities": [],
+                "operations": [],
+                "resource_types": [],
+                "auth_type": "oauth2",
+            },
+        )
+
+    client = build_client(handler)
+    client.retry_policy = RetryPolicy(max_attempts=2, base_delay_seconds=0)
+
+    description = client.describe("conninst_123")
+
+    assert description["connector_key"] == "github"
+    assert attempts == 2
+    client.close()
+
+
+def test_retry_policy_does_not_retry_unsafe_test_connection() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(
+            503,
+            json={
+                "error": {
+                    "code": "provider_unavailable",
+                    "message": "Provider unavailable.",
+                    "retryable": True,
+                    "request_id": "req_retry",
+                    "details": {},
+                }
+            },
+        )
+
+    client = build_client(handler)
+    client.retry_policy = RetryPolicy(max_attempts=3, base_delay_seconds=0)
+
+    with pytest.raises(ProviderUnavailableError):
+        client._send(  # noqa: SLF001
+            payload={"connector_instance_id": "conninst_123", "operation": "test_connection"},
+            bound_request=False,
+        )
+
+    assert attempts == 1
     client.close()
 
 
@@ -410,6 +586,83 @@ def test_provider_unavailable_maps_to_provider_unavailable_error() -> None:
         client.describe("conninst_123")
 
     assert exc_info.value.code == "provider_unavailable"
+    assert exc_info.value.category == ConnectorErrorCategory.PROVIDER
+    assert exc_info.value.retry_recommendation == RetryRecommendation.RETRY
+    client.close()
+
+
+def test_execution_quota_exceeded_maps_to_retryable_quota_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            429,
+            json={
+                "error": {
+                    "code": "execution_quota_exceeded",
+                    "message": "Connector execution quota exceeded.",
+                    "retryable": True,
+                    "request_id": "req_quota",
+                    "details": {"scope": "tenant", "retry_after_seconds": 30},
+                }
+            },
+        )
+
+    client = build_client(handler)
+
+    with pytest.raises(ExecutionQuotaExceededError) as exc_info:
+        client.describe("conninst_123")
+
+    assert exc_info.value.category == ConnectorErrorCategory.QUOTA
+    assert exc_info.value.retry_recommendation == RetryRecommendation.RETRY_WITH_BACKOFF
+    assert exc_info.value.retry_after_seconds == 30.0
+    client.close()
+
+
+def test_package_manifest_mismatch_maps_to_package_category() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            409,
+            json={
+                "error": {
+                    "code": "connector_package_manifest_mismatch",
+                    "message": "Loaded package does not match the manifest snapshot.",
+                    "retryable": False,
+                    "request_id": "req_package_mismatch",
+                    "details": {},
+                }
+            },
+        )
+
+    client = build_client(handler)
+
+    with pytest.raises(RuntimeExecutionError) as exc_info:
+        client.describe("conninst_123")
+
+    assert exc_info.value.category == ConnectorErrorCategory.PACKAGE
+    assert exc_info.value.retry_recommendation == RetryRecommendation.DO_NOT_RETRY
+    client.close()
+
+
+def test_connector_response_too_large_maps_to_payload_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            502,
+            json={
+                "error": {
+                    "code": "connector_response_too_large",
+                    "message": "Connector response exceeded the configured size limit.",
+                    "retryable": False,
+                    "request_id": "req_too_large",
+                    "details": {"actual_response_bytes": 2000000},
+                }
+            },
+        )
+
+    client = build_client(handler)
+
+    with pytest.raises(PayloadTooLargeError) as exc_info:
+        client.describe("conninst_123")
+
+    assert exc_info.value.category == ConnectorErrorCategory.RESULT
     client.close()
 
 
@@ -481,6 +734,48 @@ async def test_async_query_from_input_returns_records_result() -> None:
 
     assert isinstance(result, RecordsResult)
     assert result.records[0]["id"] == "issue_async"
+    await client.aclose()
+
+
+@pytest.mark.anyio
+async def test_async_bound_alias_helper_queries_input() -> None:
+    requests: list[dict] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content.decode("utf-8"))
+        requests.append(payload)
+        return httpx.Response(
+            200,
+            json={
+                "kind": "records",
+                "records": [{"id": "issue_async", "type": "issue"}],
+                "cursor": None,
+                "meta": {
+                    "connector_key": "github",
+                    "connector_version": "1.0.0",
+                    "action": "search_issues",
+                    "request_id": "req_async_alias",
+                },
+            },
+        )
+
+    client = build_async_client(
+        handler,
+        execution_context=ConnectorExecutionContext(
+            pipeline_id="pipe_1",
+            agent_node_id="node_1",
+            request_id="req_async_alias",
+        ),
+    )
+
+    result = await client.alias("issue_source").query(
+        "search_issues",
+        {"query": "label:bug"},
+    )
+
+    assert isinstance(result, RecordsResult)
+    assert result.require_first()["id"] == "issue_async"
+    assert requests[0]["input_name"] == "issue_source"
     await client.aclose()
 
 

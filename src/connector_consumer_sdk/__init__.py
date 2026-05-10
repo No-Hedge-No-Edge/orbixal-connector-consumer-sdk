@@ -1,20 +1,37 @@
 """Public-facing connector consumer SDK package."""
 
+from connector_consumer_sdk.actions import (
+    ConnectorAction,
+    GitHubGetIssue,
+    GitHubSearchIssues,
+    MarketIntelCompanyNews,
+    MarketIntelGetQuote,
+    SECGetCompanyFacts,
+    SECSearchCompanies,
+    TabularReadRows,
+)
 from connector_consumer_sdk.authorization import (
     AsyncConnectorAuthorizationClient,
     ConnectorAuthorizationClient,
     OAuthAuthorizationSession,
     OAuthAuthorizationSessionStatus,
 )
-from connector_consumer_sdk.client import AsyncConnectorClient, ConnectorClient
+from connector_consumer_sdk.client import (
+    AsyncBoundConnector,
+    AsyncConnectorClient,
+    BoundConnector,
+    ConnectorClient,
+)
 from connector_consumer_sdk.context import ConnectorExecutionContext
 from connector_consumer_sdk.exceptions import (
     AuthExpiredError,
     AuthInvalidError,
     BindingNotFoundError,
     ConnectorClientError,
+    ConnectorErrorCategory,
     ConnectorNotAvailableError,
     CredentialResolutionError,
+    ExecutionQuotaExceededError,
     InvalidRuntimeRequestError,
     OAuthAuthorizationError,
     OperationNotSupportedError,
@@ -22,8 +39,11 @@ from connector_consumer_sdk.exceptions import (
     ProviderRateLimitedError,
     ProviderTimeoutError,
     ProviderUnavailableError,
+    RetryRecommendation,
     ResultNormalizationError,
     RuntimeExecutionError,
+    category_for_error_code,
+    retry_recommendation_for_error_code,
 )
 from connector_consumer_sdk.generated.discovery_models import (
     ConnectorDescription,
@@ -54,20 +74,25 @@ from connector_consumer_sdk.generated.state_models import (
     HealthStatus,
     InstanceStatus,
 )
+from connector_consumer_sdk.retry import RetryPolicy
 from connector_consumer_sdk.results import ConnectorResult, RecordsResult, TabularResult
 
 __all__ = [
     "BOUND_EXECUTION_KEYS",
+    "AsyncBoundConnector",
     "ColumnDef",
     "AsyncConnectorAuthorizationClient",
     "AsyncConnectorClient",
     "AuthExpiredError",
     "AuthInvalidError",
     "BindingNotFoundError",
+    "BoundConnector",
     "ConnectorAuthorizationClient",
+    "ConnectorAction",
     "ConnectorClient",
     "ConnectorClientError",
     "ConnectorDescription",
+    "ConnectorErrorCategory",
     "ConnectorExecutionContext",
     "ConnectorNotAvailableError",
     "ConnectorResult",
@@ -76,10 +101,15 @@ __all__ = [
     "DIRECT_EXECUTION_KEYS",
     "ErrorEnvelope",
     "ErrorPayload",
+    "ExecutionQuotaExceededError",
     "ExecutionContext",
+    "GitHubGetIssue",
+    "GitHubSearchIssues",
     "HealthStatus",
     "InstanceStatus",
     "InvalidRuntimeRequestError",
+    "MarketIntelCompanyNews",
+    "MarketIntelGetQuote",
     "OAuthAuthorizationError",
     "OAuthAuthorizationSession",
     "OAuthAuthorizationSessionStatus",
@@ -95,13 +125,20 @@ __all__ = [
     "RecordsMeta",
     "ResourceItem",
     "ResourcePage",
+    "RetryRecommendation",
+    "RetryPolicy",
     "ResultNormalizationError",
     "RuntimeExecutionError",
     "RowItem",
     "RuntimeExecuteRequest",
     "RuntimeInput",
     "RuntimeOperation",
+    "SECGetCompanyFacts",
+    "SECSearchCompanies",
+    "TabularReadRows",
     "TabularResult",
     "TabularEnvelope",
     "TabularMeta",
+    "category_for_error_code",
+    "retry_recommendation_for_error_code",
 ]

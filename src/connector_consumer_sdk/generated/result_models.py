@@ -19,6 +19,7 @@ class RecordsMeta(TypedDict):
     connector_version: str
     action: str
     request_id: str
+    entitlement: dict[str, Any] | None
 
 
 class RecordsEnvelope(TypedDict, total=False):
@@ -44,6 +45,7 @@ class TabularMeta(TypedDict):
     connector_version: str
     action: str
     request_id: str
+    entitlement: dict[str, Any] | None
 
 
 class TabularEnvelope(TypedDict, total=False):
