@@ -39,6 +39,13 @@ with client:
     first_issue = result.first()
 ```
 
+When an agent runs inside Orbixal Pipeline Builder/Launchpad, the runner sets
+`ORBIXAL_RUNTIME_EXECUTION_CONTEXT` and the `ORBIXAL_PIPELINE_*` environment variables. The SDK
+loads that context automatically when `execution_context` is omitted, and it merges missing
+org/project/run/step fields into explicit contexts without overriding caller-provided
+`pipeline_id`, `agent_node_id`, or `request_id`. This lets connector runtime receipts stay tied to
+the exact pipeline run and step without requiring every agent author to manually copy metadata.
+
 Direct instance access remains available as a lower-level escape hatch:
 
 ```python

@@ -46,7 +46,11 @@ class _ConnectorClientBase:
     """Shared payload, parsing, and error-mapping logic for connector clients."""
 
     def __init__(self, *, execution_context: ConnectorExecutionContext | None = None) -> None:
-        self.execution_context = execution_context
+        self.execution_context = (
+            ConnectorExecutionContext.from_environment()
+            if execution_context is None
+            else execution_context.with_environment_defaults()
+        )
 
     def _build_bound_payload(
         self,
@@ -71,6 +75,9 @@ class _ConnectorClientBase:
         execution_context = self.execution_context.as_runtime_execution_context()
         if execution_context:
             payload["execution_context"] = execution_context
+        approval_context = self.execution_context.as_approval_context()
+        if approval_context:
+            payload["approval_context"] = approval_context
         return payload
 
     def _build_direct_payload(
@@ -89,12 +96,20 @@ class _ConnectorClientBase:
         execution_context = self._execution_context_payload()
         if execution_context:
             payload["execution_context"] = execution_context
+        approval_context = self._approval_context_payload()
+        if approval_context:
+            payload["approval_context"] = approval_context
         return payload
 
     def _execution_context_payload(self) -> dict[str, Any] | None:
         if self.execution_context is None:
             return None
         return self.execution_context.as_runtime_execution_context()
+
+    def _approval_context_payload(self) -> dict[str, Any] | None:
+        if self.execution_context is None:
+            return None
+        return self.execution_context.as_approval_context()
 
     @staticmethod
     def _build_action_input(
