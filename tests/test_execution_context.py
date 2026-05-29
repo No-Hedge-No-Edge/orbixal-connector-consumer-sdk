@@ -53,6 +53,47 @@ def test_execution_context_loads_runner_environment(monkeypatch) -> None:
     }
 
 
+def test_execution_context_loads_dependency_lock_from_runner_environment(monkeypatch) -> None:
+    checksum = "sha256:" + ("a" * 64)
+    monkeypatch.setenv(
+        "ORBIXAL_RUNTIME_EXECUTION_CONTEXT",
+        json.dumps(
+            {
+                "schema_version": 1,
+                "pipeline_id": "pipe_123",
+                "step_id": "agent_step",
+                "lockfile_checksum": checksum,
+                "connector_bindings": [
+                    {
+                        "connector_key": "github",
+                        "binding_id": "conn_inst_123",
+                        "mode": "live",
+                    }
+                ],
+                "dependency_lock": {
+                    "schema_version": "orbixal.runtime_lock_context.v1",
+                    "lockfile_checksum": checksum,
+                    "connector_bindings": [
+                        {
+                            "connector_key": "github",
+                            "binding_id": "conn_inst_123",
+                            "mode": "live",
+                        }
+                    ],
+                },
+            }
+        ),
+    )
+
+    context = ConnectorExecutionContext.from_environment()
+
+    assert context is not None
+    payload = context.as_runtime_execution_context()
+    assert payload["lockfile_checksum"] == checksum
+    assert payload["connector_bindings"][0]["binding_id"] == "conn_inst_123"
+    assert payload["dependency_lock"]["schema_version"] == "orbixal.runtime_lock_context.v1"
+
+
 def test_execution_context_merges_explicit_context_with_runner_defaults(monkeypatch) -> None:
     monkeypatch.setenv("ORBIXAL_PIPELINE_ORG_ID", "org_123")
     monkeypatch.setenv("ORBIXAL_PIPELINE_PROJECT_ID", "42")

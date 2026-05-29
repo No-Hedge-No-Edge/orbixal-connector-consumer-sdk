@@ -19,6 +19,9 @@ _RUNTIME_CONTEXT_KEYS = {
     "trace_id",
     "request_id",
     "approval_context",
+    "lockfile_checksum",
+    "connector_bindings",
+    "dependency_lock",
 }
 
 
@@ -53,6 +56,9 @@ class ConnectorExecutionContext:
     step_execution_id: str | None = None
     trace_id: str | None = None
     approval_context: dict[str, Any] | None = None
+    lockfile_checksum: str | None = None
+    connector_bindings: list[dict[str, Any]] | None = None
+    dependency_lock: dict[str, Any] | None = None
 
     @classmethod
     def from_environment(cls) -> "ConnectorExecutionContext | None":
@@ -98,6 +104,13 @@ class ConnectorExecutionContext:
             approval_context=(
                 dict(merged["approval_context"]) if isinstance(merged.get("approval_context"), dict) else None
             ),
+            lockfile_checksum=_non_empty(merged.get("lockfile_checksum")),
+            connector_bindings=(
+                [dict(item) for item in merged["connector_bindings"] if isinstance(item, dict)]
+                if isinstance(merged.get("connector_bindings"), list)
+                else None
+            ),
+            dependency_lock=(dict(merged["dependency_lock"]) if isinstance(merged.get("dependency_lock"), dict) else None),
         )
 
     def with_environment_defaults(self) -> "ConnectorExecutionContext":
@@ -117,6 +130,9 @@ class ConnectorExecutionContext:
             step_execution_id=self.step_execution_id or environment_context.step_execution_id,
             trace_id=self.trace_id or environment_context.trace_id,
             approval_context=self.approval_context or environment_context.approval_context,
+            lockfile_checksum=self.lockfile_checksum or environment_context.lockfile_checksum,
+            connector_bindings=self.connector_bindings or environment_context.connector_bindings,
+            dependency_lock=self.dependency_lock or environment_context.dependency_lock,
         )
 
     def as_runtime_execution_context(self) -> dict[str, Any]:
@@ -140,6 +156,12 @@ class ConnectorExecutionContext:
             payload["trace_id"] = self.trace_id
         if self.request_id is not None:
             payload["request_id"] = self.request_id
+        if self.lockfile_checksum is not None:
+            payload["lockfile_checksum"] = self.lockfile_checksum
+        if self.connector_bindings:
+            payload["connector_bindings"] = [dict(item) for item in self.connector_bindings]
+        if self.dependency_lock:
+            payload["dependency_lock"] = dict(self.dependency_lock)
         return payload
 
     def as_approval_context(self) -> dict[str, Any] | None:
