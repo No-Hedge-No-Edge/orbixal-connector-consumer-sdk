@@ -17,6 +17,7 @@ class ConnectorDescription(TypedDict):
     operations: list[OperationDescriptor]
     resource_types: list[str]
     auth_type: str | None
+    entitlement: dict[str, Any] | None
 
 
 class ResourceItem(TypedDict):

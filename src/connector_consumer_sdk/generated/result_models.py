@@ -4,6 +4,24 @@
 from typing import Any, Literal, TypedDict
 
 
+class ExecutionReceipt(TypedDict, total=False):
+    receipt_id: str
+    request_id: str
+    connector_instance_id: str
+    connector_key: str
+    connector_version: str
+    operation: str
+    action: str | None
+    connector_mode: str
+    status: Literal["succeeded", "failed"]
+    approval_id: str | None
+    idempotency_key: str | None
+    compensation_available: bool
+    compensation_action: str | None
+    payload_hash: str
+    result_hash: str
+
+
 class RecordItem(TypedDict, total=False):
     id: str
     type: str
@@ -14,11 +32,16 @@ class RecordItem(TypedDict, total=False):
     source: dict[str, Any]
 
 
-class RecordsMeta(TypedDict):
+class RecordsMetaRequired(TypedDict):
     connector_key: str
     connector_version: str
     action: str
     request_id: str
+
+
+class RecordsMeta(RecordsMetaRequired, total=False):
+    receipt: ExecutionReceipt
+    entitlement: dict[str, Any] | None
 
 
 class RecordsEnvelope(TypedDict, total=False):
@@ -39,11 +62,16 @@ class RowItem(TypedDict):
     values: dict[str, Any]
 
 
-class TabularMeta(TypedDict):
+class TabularMetaRequired(TypedDict):
     connector_key: str
     connector_version: str
     action: str
     request_id: str
+
+
+class TabularMeta(TabularMetaRequired, total=False):
+    receipt: ExecutionReceipt
+    entitlement: dict[str, Any] | None
 
 
 class TabularEnvelope(TypedDict, total=False):
