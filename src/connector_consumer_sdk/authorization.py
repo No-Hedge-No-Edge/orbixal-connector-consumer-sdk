@@ -41,6 +41,9 @@ class OAuthAuthorizationSessionStatus:
 class ConnectorAuthorizationClient:
     """Sync client for backend-owned connector authorization flows."""
 
+    # TODO: Move this setup-oriented OAuth orchestration surface to a frontend/platform SDK.
+    # The consumer SDK is intended for published assets consuming existing connector instances.
+
     def __init__(
         self,
         *,
