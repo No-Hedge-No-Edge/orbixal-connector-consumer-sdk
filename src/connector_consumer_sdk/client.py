@@ -276,10 +276,14 @@ class ConnectorClient(_ConnectorClientBase):
         transport: ConnectorTransport | None = None,
         retry_policy: RetryPolicy | None = None,
     ) -> None:
+        resolved_context = execution_context or ConnectorExecutionContext.from_environment()
+        if runtime_url is None and resolved_context is not None:
+            runtime_url = resolved_context.connector_invocation_url
+        if auth_token is None and resolved_context is not None:
+            auth_token = resolved_context.execution_token
         if transport is None and runtime_url is None:
-            raise ValueError("Provide either runtime_url or a custom transport.")
-
-        super().__init__(execution_context=execution_context)
+            raise ValueError("runtime_url is required when no invocation URL is provided by the execution context.")
+        super().__init__(execution_context=resolved_context)
         self.transport = transport or HTTPConnectorTransport(
             runtime_url=runtime_url,
             auth_token=auth_token,
@@ -643,10 +647,14 @@ class AsyncConnectorClient(_ConnectorClientBase):
         transport: AsyncConnectorTransport | None = None,
         retry_policy: RetryPolicy | None = None,
     ) -> None:
+        resolved_context = execution_context or ConnectorExecutionContext.from_environment()
+        if runtime_url is None and resolved_context is not None:
+            runtime_url = resolved_context.connector_invocation_url
+        if auth_token is None and resolved_context is not None:
+            auth_token = resolved_context.execution_token
         if transport is None and runtime_url is None:
-            raise ValueError("Provide either runtime_url or a custom transport.")
-
-        super().__init__(execution_context=execution_context)
+            raise ValueError("runtime_url is required when no invocation URL is provided by the execution context.")
+        super().__init__(execution_context=resolved_context)
         self.transport = transport or HTTPAsyncConnectorTransport(
             runtime_url=runtime_url,
             auth_token=auth_token,

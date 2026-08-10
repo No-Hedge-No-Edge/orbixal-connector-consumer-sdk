@@ -22,6 +22,10 @@ _RUNTIME_CONTEXT_KEYS = {
     "lockfile_checksum",
     "connector_bindings",
     "dependency_lock",
+    "execution_id",
+    "run_id",
+    "execution_token",
+    "connector_invocation_url",
 }
 
 
@@ -46,8 +50,8 @@ def _project_id(value: object) -> int | None:
 class ConnectorExecutionContext:
     """Bound execution context for pipeline-scoped connector access."""
 
-    pipeline_id: str
-    agent_node_id: str
+    pipeline_id: str | None = None
+    agent_node_id: str | None = None
     request_id: str | None = None
     org_id: str | None = None
     project_id: int | None = None
@@ -59,6 +63,10 @@ class ConnectorExecutionContext:
     lockfile_checksum: str | None = None
     connector_bindings: list[dict[str, Any]] | None = None
     dependency_lock: dict[str, Any] | None = None
+    execution_id: str | None = None
+    run_id: str | None = None
+    execution_token: str | None = None
+    connector_invocation_url: str | None = None
 
     @classmethod
     def from_environment(cls) -> "ConnectorExecutionContext | None":
@@ -83,12 +91,17 @@ class ConnectorExecutionContext:
             "step_execution_id": os.environ.get("ORBIXAL_PIPELINE_STEP_EXECUTION_ID"),
             "agent_node_id": os.environ.get("ORBIXAL_PIPELINE_STEP_ID"),
             "trace_id": os.environ.get("ORBIXAL_PIPELINE_TRACE_ID"),
+            "execution_id": os.environ.get("ORBIXAL_EXECUTION_ID"),
+            "run_id": os.environ.get("ORBIXAL_RUN_ID"),
+            "execution_token": os.environ.get("ORBIXAL_EXECUTION_TOKEN"),
+            "connector_invocation_url": os.environ.get("ORBIXAL_CONNECTOR_INVOCATION_URL"),
         }
         merged = {**env_context, **{key: value for key, value in parsed_context.items() if value is not None}}
 
         pipeline_id = _non_empty(merged.get("pipeline_id"))
         agent_node_id = _non_empty(merged.get("agent_node_id") or merged.get("step_id"))
-        if pipeline_id is None or agent_node_id is None:
+        execution_id = _non_empty(merged.get("execution_id"))
+        if (pipeline_id is None or agent_node_id is None) and execution_id is None:
             return None
 
         return cls(
@@ -111,6 +124,10 @@ class ConnectorExecutionContext:
                 else None
             ),
             dependency_lock=(dict(merged["dependency_lock"]) if isinstance(merged.get("dependency_lock"), dict) else None),
+            execution_id=execution_id,
+            run_id=_non_empty(merged.get("run_id")),
+            execution_token=_non_empty(merged.get("execution_token")),
+            connector_invocation_url=_non_empty(merged.get("connector_invocation_url")),
         )
 
     def with_environment_defaults(self) -> "ConnectorExecutionContext":
@@ -133,15 +150,25 @@ class ConnectorExecutionContext:
             lockfile_checksum=self.lockfile_checksum or environment_context.lockfile_checksum,
             connector_bindings=self.connector_bindings or environment_context.connector_bindings,
             dependency_lock=self.dependency_lock or environment_context.dependency_lock,
+            execution_id=self.execution_id or environment_context.execution_id,
+            run_id=self.run_id or environment_context.run_id,
+            execution_token=self.execution_token or environment_context.execution_token,
+            connector_invocation_url=self.connector_invocation_url or environment_context.connector_invocation_url,
         )
 
     def as_runtime_execution_context(self) -> dict[str, Any]:
         """Return the canonical runtime execution-context payload."""
 
         payload: dict[str, Any] = {
-            "pipeline_id": self.pipeline_id,
-            "agent_node_id": self.agent_node_id,
         }
+        if self.pipeline_id is not None:
+            payload["pipeline_id"] = self.pipeline_id
+        if self.agent_node_id is not None:
+            payload["agent_node_id"] = self.agent_node_id
+        if self.execution_id is not None:
+            payload["execution_id"] = self.execution_id
+        if self.run_id is not None:
+            payload["run_id"] = self.run_id
         if self.org_id is not None:
             payload["org_id"] = self.org_id
         if self.project_id is not None:
